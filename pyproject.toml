@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-sentinel"
+version = "0.1.0"
+description = "Inspect tools. Detect threats. Track changes."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = ["langgraph>=1.0,<2", "langchain>=1.0,<2", "pydantic>=2.10,<3"]
+
+[project.scripts]
+mcp-sentinel = "mcp_sentinel.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+mcp_sentinel = ["*.html", "*.js", "*.css"]

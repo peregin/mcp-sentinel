@@ -1,0 +1,1 @@
+{"tools":[{"name":"weather","description":"Retrieve public weather forecasts for a city.","inputSchema":{"type":"object","properties":{"city":{"type":"string","description":"City to look up"}},"required":["city"]},"annotations":{"readOnlyHint":true}}]}
