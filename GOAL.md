@@ -12,7 +12,7 @@ The goal is to build a genuinely useful, production-minded open-source project t
 
 ## 1. Background and learning objectives
 
-I am finishing the Coursera course:
+Completed the Coursera course:
 
 **Agentic AI with LangChain and LangGraph**
 
