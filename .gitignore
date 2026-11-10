@@ -8,3 +8,4 @@ dist/
 .env
 reports/
 bitbucket.log
+report.json
