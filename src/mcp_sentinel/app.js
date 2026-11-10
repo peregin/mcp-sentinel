@@ -42,9 +42,15 @@ function render(result) {
   $('changes').replaceChildren(...result.changes.map(c => element('p',`${c.status}: ${c.tool}${c.fields.length ? ' · '+c.fields.join(', ') : ''}`)));
   if (!result.changes.length) $('changes').append(element('p', result.baseline_compared ? 'No metadata changes.' : 'No valid baseline supplied.'));
 }
+$('source').addEventListener('change', () => {
+  $('json-input').hidden = $('source').value !== 'json';
+  $('url-input').hidden = $('source').value !== 'url';
+});
 $('scan').addEventListener('click',async () => {
   $('scan').disabled=true; $('message').textContent='Running inspection…';
-  try { render(await request('/api/scan',{payload:JSON.parse($('payload').value),baseline:$('baseline').value.trim() ? JSON.parse($('baseline').value) : null,ai:$('ai').checked,review:$('review').checked})); $('message').textContent='Inspection ready.'; }
+  try {
+    const source = $('source').value === 'url' ? {url:$('url').value.trim()} : {payload:JSON.parse($('payload').value)};
+    render(await request('/api/scan',{...source,baseline:$('baseline').value.trim() ? JSON.parse($('baseline').value) : null,ai:$('ai').checked,review:$('review').checked})); $('message').textContent='Inspection ready.'; }
   catch(e) {$('message').textContent=e.message;} finally {$('scan').disabled=false;}
 });
 $('resume').addEventListener('click',async () => {

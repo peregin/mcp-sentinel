@@ -1,10 +1,11 @@
-"""Loopback-only development UI. No remote targets, filesystem paths or uploads to services."""
+"""Loopback-only UI with explicit public HTTPS MCP discovery."""
 import json
 import secrets
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from importlib.resources import files
 from .engine import Inspector
 from .models import MAX_BYTES, HumanDecision, ScanOptions
+from .discovery import DiscoveryError, discover
 
 
 def create_server(inspector: Inspector, port=8765, ai_available=False):
@@ -63,7 +64,10 @@ def create_server(inspector: Inspector, port=8765, ai_available=False):
                 if self.path == '/api/scan':
                     if body.get('ai') and not ai_available:
                         raise ValueError('AI is not configured')
-                    report = inspector.inspect(body['payload'], baseline=body.get('baseline'),
+                    if ('url' in body) == ('payload' in body):
+                        raise ValueError('Supply exactly one input source')
+                    payload = discover(body['url']) if 'url' in body else body['payload']
+                    report = inspector.inspect(payload, baseline=body.get('baseline'),
                         options=ScanOptions(ai=body.get('ai', False), human_review=body.get('review', False)))
                 elif self.path == '/api/review':
                     report = inspector.resume(body['scan_id'], [HumanDecision.model_validate(d) for d in body['decisions']])
@@ -71,6 +75,8 @@ def create_server(inspector: Inspector, port=8765, ai_available=False):
                     self.send(404, '{}')
                     return
                 self.send(200, report.model_dump_json())
+            except DiscoveryError as exc:
+                self.send(400, json.dumps({'error': str(exc)}))
             except (ValueError, KeyError, TypeError, RecursionError):
                 self.send(400, '{"error":"Invalid request or review decisions"}')
 

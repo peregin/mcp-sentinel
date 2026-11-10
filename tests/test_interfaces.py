@@ -4,9 +4,11 @@ import json
 import re
 import threading
 import unittest
+from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from mcp_sentinel.cli import main
+from mcp_sentinel.discovery import DiscoveryError
 from mcp_sentinel.engine import Inspector
 from mcp_sentinel.web import create_server
 from test_engine import ROOT, BENIGN, SUSPICIOUS
@@ -45,6 +47,23 @@ class InterfaceTests(unittest.TestCase):
             self.assertEqual(reviewed['status'],'complete')
             self.assertEqual(reviewed['trace'][-1],'generate_report')
             self.assertEqual(len(reviewed['decisions']),5)
+            with patch('mcp_sentinel.web.discover', return_value=BENIGN) as discover:
+                live = post('/api/scan', {'url': 'https://weather.example/mcp'})
+                discover.assert_called_once_with('https://weather.example/mcp')
+                self.assertEqual(live['snapshot_hash'], Inspector().inspect(BENIGN).snapshot_hash)
+                for body in ({'url': 'https://weather.example/mcp', 'payload': BENIGN}, {},
+                             {'url': 'https://weather.example/mcp', 'ai': True}):
+                    discover.reset_mock()
+                    with self.assertRaises(HTTPError) as invalid_source:
+                        post('/api/scan', body)
+                    self.assertEqual(invalid_source.exception.code, 400)
+                    invalid_source.exception.close()
+                    discover.assert_not_called()
+            with patch('mcp_sentinel.web.discover', side_effect=DiscoveryError('MCP discovery timed out')):
+                with self.assertRaises(HTTPError) as failed_discovery:
+                    post('/api/scan', {'url': 'https://weather.example/mcp'})
+                self.assertEqual(json.load(failed_discovery.exception)['error'], 'MCP discovery timed out')
+                failed_discovery.exception.close()
             with self.assertRaises(HTTPError) as unavailable:
                 post('/api/scan',{'payload':BENIGN,'ai':True})
             unavailable.exception.close()

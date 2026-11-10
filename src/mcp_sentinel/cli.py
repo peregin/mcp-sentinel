@@ -1,4 +1,4 @@
-"""Command line entry point. Deterministic and network-free by default."""
+"""Command line entry point. Network discovery requires an explicit URL."""
 import argparse
 import json
 import sys
@@ -6,6 +6,7 @@ from pathlib import Path
 from .analyst import LangChainAnalyst
 from .engine import Inspector
 from .models import MAX_BYTES, HumanDecision, ScanOptions
+from .discovery import DiscoveryError, discover
 
 
 def read_input(path):
@@ -28,8 +29,8 @@ def make_inspector(model=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(description="MCP Sentinel — Inspect tools. Detect threats. Track changes.")
     commands = parser.add_subparsers(dest="command", required=True)
-    scan = commands.add_parser("scan", help="Inspect an exported tools/list JSON file")
-    scan.add_argument("input")
+    scan = commands.add_parser("scan", help="Inspect a tools/list JSON file or public HTTPS MCP URL")
+    scan.add_argument("input", help="Tool export path or public HTTPS MCP endpoint")
     scan.add_argument("--baseline", help="Previous tool export or Sentinel JSON report")
     scan.add_argument("--output", help="Write the full JSON report")
     scan.add_argument("--model", help="Opt in to AI: explicit LangChain provider:model identifier")
@@ -47,7 +48,8 @@ def main(argv=None):
             return 0
         if args.review and not sys.stdin.isatty():
             raise ValueError("--review needs an interactive terminal")
-        report = inspector.inspect(read_input(args.input),
+        payload = discover(args.input) if '://' in args.input else read_input(args.input)
+        report = inspector.inspect(payload,
             baseline=read_input(args.baseline) if args.baseline else None,
             options=ScanOptions(ai=bool(args.model), human_review=args.review))
         if report.status == "awaiting_review":
@@ -75,6 +77,9 @@ def main(argv=None):
         if args.fail_on and any(levels.index(f.severity) >= levels.index(args.fail_on) for f in report.findings):
             return 1
         return 0
+    except DiscoveryError as exc:
+        print(f"mcp-sentinel: {exc}", file=sys.stderr)
+        return 2
     except (OSError, ValueError, ImportError) as exc:
         print(f"mcp-sentinel: {type(exc).__name__}: check input, model configuration and dependencies", file=sys.stderr)
         return 2

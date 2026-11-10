@@ -2,7 +2,7 @@
 
 **Inspect tools. Detect threats. Track changes.**
 
-MCP Sentinel inspects exported Model Context Protocol tool definitions for suspicious instructions, sensitive-data references, dangerous capabilities, and potential outbound transfers. It preserves exact evidence, optionally asks an AI analyst and a separate critic to assess it, compares previous snapshots, and queues human review.
+MCP Sentinel inspects exported or live-discovered Model Context Protocol tool definitions for suspicious instructions, sensitive-data references, dangerous capabilities, and potential outbound transfers. It preserves exact evidence, optionally asks an AI analyst and a separate critic to assess it, compares previous snapshots, and queues human review.
 
 **Static metadata assessment, not a guarantee of safety.** A tool description cannot establish what a server actually does. Findings distinguish heuristic signals, possible capabilities, and AI assessments. Even the AI's conclusions remain unverified.
 
@@ -18,11 +18,14 @@ mcp-sentinel scan examples/suspicious.json
 mcp-sentinel serve
 ```
 
-Open **http://127.0.0.1:8765**. Paste a tool export, optionally provide a baseline, and run an inspection. The browser supports evidence inspection, critic commentary, human review and JSON downloads. No API key is needed for deterministic scans.
+Open **http://127.0.0.1:8765**. Choose **Paste JSON** or **MCP URL**, optionally provide a baseline, and run an inspection. The browser supports evidence inspection, critic commentary, human review and JSON downloads. No API key is needed for deterministic scans.
 
 ```sh
 # Complete CLI inspection, including baseline comparison
 mcp-sentinel scan examples/suspicious.json --baseline examples/benign.json --output report.json
+
+# Discover and inspect tools from a public HTTPS MCP endpoint
+mcp-sentinel scan https://weather.velocorner.com/mcp --output weather-report.json
 
 # Fail a pipeline on findings at or above the selected severity
 mcp-sentinel scan examples/suspicious.json --fail-on high
@@ -36,11 +39,19 @@ python -m unittest discover -s tests -v
 
 Exit codes: `0` complete, `1` severity threshold reached, `2` failed/degraded assessment or configuration error, `130` interrupted. A failed or degraded assessment takes precedence over a severity threshold. Dismissing a finding records a decision without changing evidence or CI thresholds.
 
+## MCP URL discovery
+
+URL input uses the MCP SDK's Streamable HTTP client to initialize a session, fetch all `tools/list` pages, and close the session. Both JSON and SSE responses are supported. Target tools are never called; sampling and elicitation are unsupported, and no local roots are exposed. The resulting inventory enters the same inspection graph as exported JSON. Identical tool metadata produces identical deterministic findings and snapshot hashes; optional AI assessments may vary.
+
+Discovery accepts public HTTPS endpoints only. URLs with embedded credentials or fragments, private/local IP addresses, mixed public/private DNS answers, redirects, and compressed responses are rejected. The client connects to a validated numeric IP while preserving the original Host header and TLS certificate verification, preventing a second DNS lookup from redirecting the connection to a private address. Environment proxies are disabled. The server receives the discovery requests and the client's network address.
+
+Discovery has a 30-second total timeout, 10-second HTTP operation timeouts, a 2 MB combined response-body budget (including protocol envelopes and notifications), and a 200-page limit. The assembled inventory retains the existing 1 MB/200-tool limits. An incomplete or failed discovery produces an error (CLI exit `2`), never a report based on a partial inventory. Baselines remain local exports or reports. Authentication/OAuth, legacy HTTP+SSE endpoints, private-network targets and automatic retries after connection failure are not supported. A server without tool support is an error; a server explicitly listing zero tools is a valid empty inventory.
+
 ## Input and baseline formats
 
 Accepts a tool array, `{"tools": [...]}`, or a JSON-RPC response `{"result": {"tools": [...]}}`. Each tool needs a unique nonempty name and an `inputSchema` declaring `"type": "object"`. Description is optional. Unknown metadata, annotations, output schemas and nested schema descriptions are preserved and scanned. Validation checks the envelope and basic tool shape; it does not compile or fully validate JSON Schema semantics.
 
-Export **all pages** of `tools/list` first. A nonempty `nextCursor` is rejected to prevent a partial inventory being mistaken for a complete scan. Input and baseline are each limited to 1 MB and 200 tools. Invalid primary input yields `failed`; invalid baseline yields `degraded` with no comparison.
+For JSON input, export **all pages** of `tools/list` first. A nonempty `nextCursor` is rejected to prevent a partial inventory being mistaken for a complete scan. URL discovery collects pages automatically. Input and baseline are each limited to 1 MB and 200 tools. Invalid primary input yields `failed`; invalid baseline yields `degraded` with no comparison.
 
 Baselines can be previous exports or Sentinel JSON reports. Canonical snapshots ignore object key order and top-level tool order. Added, removed and modified tools are reported, with changed top-level metadata fields. Arrays remain order-sensitive. A hash detects equality; it is not a signature, identity check, or guarantee against baseline tampering. Store baselines in a trusted location and compare the same server yourself.
 
@@ -130,7 +141,7 @@ See [the threat model](docs/THREAT_MODEL.md) for trust boundaries and limits. Th
 
 Current rules flag instruction overrides, concealment, sensitive data, execution/destructive operations and destinations/transfers. Legitimate documentation and warning examples can match. No detection precision/recall claims are made. Obfuscation, multilingual instructions, malicious code absent from metadata, server impersonation and runtime exploitability remain outside this first version's coverage.
 
-Live MCP discovery, server execution, retrieval from external security sources, persistent review storage, authenticated hosting and calibrated evaluations are not implemented. Offline exports intentionally keep server launch and network access outside the trust boundary.
+Server execution, retrieval from external security sources, persistent review storage, authenticated hosting and calibrated evaluations are not implemented. Export scans remain offline unless AI is enabled; URL input explicitly enables bounded network discovery.
 
 ## Development
 
@@ -140,6 +151,6 @@ python -m compileall -q src tests
 python -m pip check
 ```
 
-Tests cover routing, deterministic and AI execution, malformed input, baseline changes, fabricated evidence, critic failures, bounded local tool use, interrupt/resume, CLI behavior, and HTTP request protection. `requirements-lock.txt` records the environment tested on Python 3.14; use it for a pinned development install (`pip install -r requirements-lock.txt`, then `pip install --no-deps -e .`). It is not a cross-platform compatibility or vulnerability-free guarantee.
+Tests cover routing, deterministic and AI execution, malformed input, baseline changes, fabricated evidence, critic failures, bounded local tool use, interrupt/resume, CLI behavior, HTTP request protection, and MCP discovery with controlled protocol responses. Discovery tests check sessions, JSON/SSE, pagination, metadata equivalence, limits, and blocked destinations. `requirements-lock.txt` pins development dependencies; use it for a pinned development install (`pip install -r requirements-lock.txt`, then `pip install --no-deps -e .`). It is not a cross-platform compatibility or vulnerability-free guarantee.
 
 Architectural references: [LangGraph Graph API](https://docs.langchain.com/oss/python/langgraph/graph-api), [LangChain model interfaces](https://docs.langchain.com/oss/python/langchain/models), [MCP tools specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).
