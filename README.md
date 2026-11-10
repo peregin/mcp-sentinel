@@ -71,7 +71,7 @@ flowchart TD
 
 Each graph node has one responsibility. Separate analyst and critic roles are useful here; autonomous teams and general-purpose execution agents add little value to static inspection. Private chain-of-thought is neither requested nor stored.
 
-## Optional AI analysis
+## AI analysis
 
 Use a LangChain chat integration supporting **both tool calling and `with_structured_output(PydanticModel)`**. Install and configure your chosen provider integration separately. Sentinel does not select a provider, install integrations, or configure credentials for you.
 
@@ -80,6 +80,19 @@ Use a LangChain chat integration supporting **both tool calling and `with_struct
 mcp-sentinel scan examples/suspicious.json --model 'provider:model'
 mcp-sentinel serve --model 'provider:model'
 ```
+
+For GPT-4o mini through [OpenRouter](https://openrouter.ai/openai/gpt-4o-mini), run the following in your activated virtual environment:
+
+```sh
+python -m pip install langchain-openai
+export OPENAI_API_KEY='your-openrouter-api-key'
+export OPENAI_API_BASE='https://openrouter.ai/api/v1'
+mcp-sentinel serve --model 'openai:openai/gpt-4o-mini'
+# Or run a CLI scan:
+mcp-sentinel scan examples/suspicious.json --model 'openai:openai/gpt-4o-mini' --output report.json
+```
+
+The `openai:` prefix selects the LangChain integration; `openai/gpt-4o-mini` is the OpenRouter model ID. Open **http://127.0.0.1:8765** and enable **AI analyst + critic** for browser scans. AI requests use your OpenRouter account and incur API charges.
 
 This is explicit consent to transmit selected metadata to that model. In the browser, the AI checkbox is a separate opt-in per scan. Set credentials through the provider's supported environment configuration. Never paste live credentials into metadata. Review your LangChain tracing environment too: enabled tracing may transmit prompts to an additional service.
 
